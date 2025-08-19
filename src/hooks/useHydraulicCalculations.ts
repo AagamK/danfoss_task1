@@ -125,26 +125,51 @@ export const useHydraulicCalculations = (parameters: HydraulicParameters) => {
       ];
 
       let currentTime = 0;
-      phases.forEach(phase => {
-        const timeStep = phase.time / 10; // 10 data points per phase
-        for (let i = 0; i <= 10; i++) {
-          const time = currentTime + (i * timeStep);
-          simulationData.push({
-            time,
-            flow: phase.flow,
-            pressure: phase.pressure,
-            stroke: 0, // Placeholder - would calculate based on time
-            motorPower: phase.motorPower,
-            actuatorPower: phase.actuatorPower,
-            phase: phase.name,
-            pumpInputPower: phase.pressure * phase.flow / 600,
-            actualMotorInputPower: phase.motorPower,
-            actuatorOutputPower: phase.actuatorPower,
-            idealMotorInputPower: phase.idealPower
-          });
-        }
-        currentTime += phase.time;
-      });
+let currentStroke = 0;
+
+phases.forEach(phase => {
+  // Get the parameters for the current phase (e.g., speed, total stroke for the phase)
+  const phaseParams = parameters.phases[phase.name as keyof typeof parameters.phases];
+  const timeStep = phase.time / 10; // Create 10 data points per phase
+
+  for (let i = 0; i <= 10; i++) {
+    const timeInPhase = i * timeStep;
+    const time = currentTime + timeInPhase;
+    let strokeAtTime = currentStroke;
+
+    // Calculate stroke based on speed (mm/s) and time elapsed in this phase
+    if (phase.name === 'fastUp') {
+      // Stroke decreases (retracts) during the 'fastUp' phase
+      strokeAtTime -= phaseParams.speed * timeInPhase;
+    } else {
+      // Stroke increases (extends) during all other phases
+      strokeAtTime += phaseParams.speed * timeInPhase;
+    }
+
+    simulationData.push({
+      time,
+      flow: phase.flow,
+      pressure: phase.pressure,
+      stroke: Math.max(0, strokeAtTime), // Use the calculated value and prevent it from going below 0
+      motorPower: phase.motorPower,
+      actuatorPower: phase.actuatorPower,
+      phase: phase.name,
+      pumpInputPower: phase.pressure * phase.flow / 600,
+      actualMotorInputPower: phase.motorPower,
+      actuatorOutputPower: phase.actuatorPower,
+      idealMotorInputPower: phase.idealPower
+    });
+  }
+
+  // Update the cumulative stroke for the start of the next phase
+  if (phase.name === 'fastUp') {
+    currentStroke -= phaseParams.stroke;
+  } else {
+    currentStroke += phaseParams.stroke;
+  }
+  currentStroke = Math.max(0, currentStroke); // Ensure stroke doesn't become negative
+  currentTime += phase.time;
+});
 
       const calculatedResults: HydraulicResults = {
         pumpFlowRate,
@@ -184,7 +209,7 @@ export const useHydraulicCalculations = (parameters: HydraulicParameters) => {
 
   return {
     results,
-    simulationData: [],
+    simulationData :simulationData,
     isCalculating,
     runSimulation
   };
