@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, ChangeEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator,ArrowLeft, BarChart3, Download, Settings } from "lucide-react";
+import { Calculator, ArrowLeft, BarChart3, Download, Settings } from "lucide-react";
 import { ParameterForm } from "./ParameterForm";
 import { ResultsDashboard } from "./ResultsDashboard";
 import { SimulationGraphs } from "./SimulationGraphs";
 import { useHydraulicCalculations } from "@/hooks/useHydraulicCalculations";
 import { useNavigate } from "react-router-dom";
+import { parseParametersFromCSV } from '@/utils/csvParser';
+import { toast } from "@/components/ui/sonner";
 
 export interface HydraulicParameters {
   cylinderBore: number;
@@ -45,7 +48,8 @@ export const HydraulicSimulator = () => {
   const navigate = useNavigate();
   const [parameters, setParameters] = useState<HydraulicParameters>(defaultParameters);
   const [activeTab, setActiveTab] = useState("parameters");
-  
+  const [file, setFile] = useState<File | null>(null);
+
   const { results, simulationData, isCalculating, runSimulation } = useHydraulicCalculations(parameters);
 
   const handleRunSimulation = () => {
@@ -53,9 +57,40 @@ export const HydraulicSimulator = () => {
     setActiveTab("results");
   };
 
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      setFile(event.target.files[0]);
+    }
+  };
+
+  const handleRunSimulationFromFile = async () => {
+    if (!file) return;
+
+    try {
+      const parsedParams = await parseParametersFromCSV(file);
+      setParameters(parsedParams);
+      
+      // The useHydraulicCalculations hook will automatically re-run
+      // when 'parameters' state changes. We just need to trigger it.
+      // A small delay ensures the state update is processed.
+      setTimeout(() => {
+        runSimulation();
+        setActiveTab("results");
+        toast.success("Simulation complete!", {
+          description: "Results calculated from the uploaded CSV file.",
+        });
+      }, 100);
+
+    } catch (error) {
+      console.error("Failed to parse CSV:", error);
+      toast.error("CSV Parsing Error", {
+        description: error instanceof Error ? error.message : "Could not read the file.",
+      });
+    }
+  };
+
   const handleExportData = () => {
     if (!simulationData.length) return;
-    
     const csvContent = [
       ["Time (s)", "Flow (L/min)", "Pressure (bar)", "Stroke (mm)", "Motor Power (kW)", "Actuator Power (kW)"],
       ...simulationData.map(row => [
@@ -67,7 +102,6 @@ export const HydraulicSimulator = () => {
         row.actuatorPower.toFixed(2)
       ])
     ].map(row => row.join(",")).join("\n");
-    
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -85,11 +119,11 @@ export const HydraulicSimulator = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
-                      <Button variant="outline" onClick={() => navigate('/')}>
-                        <ArrowLeft className="h-4 w-4 mr-2" />
-                        Back to Home
-                      </Button>
-                    </div>
+            <Button variant="outline" onClick={() => navigate('/')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Home
+            </Button>
+          </div>
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-primary/10 rounded-lg">
               <Calculator className="h-8 w-8 text-primary" />
@@ -98,25 +132,43 @@ export const HydraulicSimulator = () => {
               <h1 className="text-3xl font-bold text-foreground">Hydraulic Press Simulator</h1>
             </div>
           </div>
-          
-          <div className="flex flex-wrap gap-4">
-            <Button 
-              onClick={handleRunSimulation}
-              disabled={isCalculating}
+
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap gap-4">
+                <Button
+                  onClick={handleRunSimulation}
+                  disabled={isCalculating}
+                  className="bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent/90"
+                >
+                  <Calculator className="h-4 w-4 mr-2" />
+                  {isCalculating ? "Calculating..." : "Run Simulation"}
+                </Button>
+                
+                <Button
+                  variant="secondary"
+                  onClick={handleExportData}
+                  disabled={!simulationData.length}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Results
+                </Button>
+            </div>
+            {/* New File Input and Button */}
+            <div className="flex items-center gap-2">
+              <Input 
+                type="file" 
+                accept=".csv , .txt" 
+                onChange={handleFileChange} 
+                className="max-w-xs"
+              />
+              <Button 
               className="bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent/90"
-            >
-              <Calculator className="h-4 w-4 mr-2" />
-              {isCalculating ? "Calculating..." : "Run Simulation"}
-            </Button>
-            
-            <Button 
-              variant="secondary" 
-              onClick={handleExportData}
-              disabled={!simulationData.length}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Results
-            </Button>
+                onClick={handleRunSimulationFromFile} 
+                disabled={!file || isCalculating}
+              >
+                Simulate from File
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -138,21 +190,21 @@ export const HydraulicSimulator = () => {
           </TabsList>
 
           <TabsContent value="parameters" className="mt-6">
-            <ParameterForm 
+            <ParameterForm
               parameters={parameters}
               onParametersChange={setParameters}
             />
           </TabsContent>
 
           <TabsContent value="results" className="mt-6">
-            <ResultsDashboard 
+            <ResultsDashboard
               results={results}
               isCalculating={isCalculating}
             />
           </TabsContent>
 
           <TabsContent value="graphs" className="mt-6">
-            <SimulationGraphs 
+            <SimulationGraphs
               data={simulationData}
               isLoading={isCalculating}
             />
