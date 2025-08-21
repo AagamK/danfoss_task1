@@ -20,7 +20,6 @@ export const RealTimeCharts = ({
   
   const handleExportData = () => {
     if (!data.length) return;
-    
     const csvContent = [
       ["Timestamp", "Stroke (mm)", "Pressure (bar)", "Temperature (°C)", "Vibration", "Status"],
       ...data.map(row => [
@@ -32,7 +31,6 @@ export const RealTimeCharts = ({
         row.status
       ])
     ].map(row => row.join(",")).join("\n");
-    
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -47,15 +45,14 @@ export const RealTimeCharts = ({
   const timeRangeButtons = [
     { value: "1h", label: "1 Hour" }
   ];
-
   const formatXAxisLabel = (value: string) => {
     const date = new Date(value);
     return date.toLocaleTimeString();
   };
-
+  
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {[1, 2, 3, 4].map((i) => (
           <Card key={i}>
             <CardHeader>
@@ -72,7 +69,6 @@ export const RealTimeCharts = ({
 
   return (
     <div className="space-y-6">
-      {/* Controls */}
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
           {timeRangeButtons.map((btn) => (
@@ -92,9 +88,8 @@ export const RealTimeCharts = ({
         </Button>
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Stroke Position Chart */}
+      {/* Change: Updated grid to be single-column */}
+      <div className="grid grid-cols-1 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Stroke Position vs Time</CardTitle>
@@ -126,7 +121,6 @@ export const RealTimeCharts = ({
           </CardContent>
         </Card>
 
-        {/* Pressure Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Pressure vs Time</CardTitle>
@@ -158,7 +152,6 @@ export const RealTimeCharts = ({
           </CardContent>
         </Card>
 
-        {/* Temperature Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Temperature vs Time</CardTitle>
@@ -190,7 +183,6 @@ export const RealTimeCharts = ({
           </CardContent>
         </Card>
 
-        {/* Vibration Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Vibration vs Time</CardTitle>

@@ -28,14 +28,11 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<Date | null>(null);
 
-  // AI Analysis Logic based on troubleshooting tables from images
   const analyzeSystemHealth = () => {
     if (!currentData || !historicalData.length) return [];
-
     const issues: Recommendation[] = [];
-    const recentData = historicalData.slice(-20); // Last 20 readings
+    const recentData = historicalData.slice(-20);
     
-    // Pressure Analysis
     if (currentData.pressure < 50) {
       issues.push({
         id: 'low-pressure',
@@ -72,7 +69,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
       });
     }
 
-    // Temperature Analysis
     if (currentData.temperature > 70) {
       issues.push({
         id: 'high-temperature',
@@ -90,7 +86,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
       });
     }
 
-    // Vibration Analysis
     const avgVibration = recentData.reduce((sum, d) => sum + d.vibration, 0) / recentData.length;
     if (currentData.vibration > avgVibration * 2 && currentData.vibration > 0.5) {
       issues.push({
@@ -109,7 +104,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
       });
     }
 
-    // Stroke Position Analysis
     const strokeVariation = Math.max(...recentData.map(d => d.stroke)) - Math.min(...recentData.map(d => d.stroke));
     if (strokeVariation < 5 && currentData.stroke > 0) {
       issues.push({
@@ -128,11 +122,9 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
       });
     }
 
-    // Trend Analysis
     if (recentData.length >= 10) {
       const pressureTrend = recentData.slice(-5).reduce((sum, d) => sum + d.pressure, 0) / 5 -
                            recentData.slice(-10, -5).reduce((sum, d) => sum + d.pressure, 0) / 5;
-      
       if (Math.abs(pressureTrend) > 10) {
         issues.push({
           id: 'pressure-trend',
@@ -164,14 +156,15 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
       setRecommendations(analysis);
       setLastAnalysis(new Date());
       setIsAnalyzing(false);
-    }, 2000); // Simulate AI processing time
+    }, 2000);
   };
 
-  useEffect(() => {
-    if (isConnected && currentData) {
-      runAnalysis();
-    }
-  }, [currentData, isConnected]);
+  // This useEffect was removed to prevent automatic analysis
+  // useEffect(() => {
+  //   if (isConnected && currentData) {
+  //     runAnalysis();
+  //   }
+  // }, [currentData, isConnected]);
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -195,7 +188,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
 
   return (
     <div className="space-y-6">
-      {/* Analysis Header */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -224,7 +216,7 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
           ) : (
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                {recommendations.length} recommendations found
+                {recommendations.length > 0 ? `${recommendations.length} recommendations found` : "Click 'Refresh Analysis' to check system health."}
               </span>
               {lastAnalysis && (
                 <span>
@@ -236,7 +228,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
         </CardContent>
       </Card>
 
-      {/* Analysis Results */}
       {isAnalyzing ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -263,7 +254,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
             <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
             <TabsTrigger value="maintenance">Maintenance Schedule</TabsTrigger>
           </TabsList>
-
           <TabsContent value="recommendations" className="space-y-4">
             {recommendations.map((rec) => (
               <Card key={rec.id} className="border-l-4" style={{ borderLeftColor: `hsl(var(--${rec.severity === 'critical' ? 'destructive' : rec.severity === 'high' ? 'destructive' : rec.severity === 'medium' ? 'accent' : 'primary'}))` }}>
@@ -286,7 +276,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
                 </CardHeader>
                 <CardContent>
                   <p className="mb-4">{rec.description}</p>
-                  
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 mb-2">
                       <Wrench className="h-4 w-4 text-muted-foreground" />
@@ -302,7 +291,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
               </Card>
             ))}
           </TabsContent>
-
           <TabsContent value="maintenance" className="space-y-4">
             <Card>
               <CardHeader>
@@ -322,7 +310,6 @@ export const AIAdvisor = ({ currentData, historicalData, isConnected }: AIAdviso
                       <li>• Pump overhaul: 6 months</li>
                     </ul>
                   </div>
-                  
                   <div className="p-4 bg-muted rounded-lg">
                     <h4 className="font-semibold mb-2">Performance Trends</h4>
                     <p className="text-sm text-muted-foreground">

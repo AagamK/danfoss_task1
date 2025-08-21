@@ -1,6 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from "recharts";
 import { SimulationDataPoint } from "@/hooks/useHydraulicCalculations";
 import { TrendingUp, Gauge, Zap, Activity } from "lucide-react";
 
@@ -17,10 +28,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="text-sm font-medium text-foreground mb-1">
           Time: {Number(label).toFixed(2)}s
         </p>
-        <p className="text-xs text-muted-foreground mb-2">Phase: {data.phase}</p>
+        <p className="text-xs text-muted-foreground mb-2">
+          Phase: {data.phase}
+        </p>
         {payload.map((entry: any, index: number) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {Number(entry.value).toFixed(2)} {getUnit(entry.dataKey)}
+            {entry.name}: {Number(entry.value).toFixed(2)}{" "}
+            {getUnit(entry.dataKey)}
           </p>
         ))}
       </div>
@@ -31,29 +45,42 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const getUnit = (dataKey: string) => {
   switch (dataKey) {
-    case 'flow': return 'L/min';
-    case 'pressure': return 'bar';
-    case 'stroke': return 'mm';
-    case 'motorPower': 
-    case 'actuatorPower': return 'kW';
-    default: return '';
+    case "flow":
+      return "L/min";
+    case "pressure":
+      return "bar";
+    case "stroke":
+      return "mm";
+    case "motorPower":
+    case "actuatorPower":
+      return "kW";
+    default:
+      return "";
   }
 };
 
 const getPhaseColor = (phase: string) => {
   switch (phase) {
-    case 'Fast Down': return '#3b82f6'; // primary
-    case 'Working Cycle': return '#f59e0b'; // warning
-    case 'Holding': return '#ef4444'; // destructive
-    case 'Fast Up': return '#10b981'; // success
-    default: return '#6b7280';
+    case "Fast Down":
+      return "#3b82f6"; // primary
+    case "Working Cycle":
+      return "#f59e0b"; // warning
+    case "Holding":
+      return "#ef4444"; // destructive
+    case "Fast Up":
+      return "#10b981"; // success
+    default:
+      return "#6b7280";
   }
 };
 
-export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => {
+export const SimulationGraphs = ({
+  data,
+  isLoading,
+}: SimulationGraphsProps) => {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i} className="shadow-technical">
             <CardHeader>
@@ -75,25 +102,26 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           <div className="text-center text-muted-foreground">
             <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No simulation data available</p>
-            <p className="text-sm mt-2">Run the simulation to generate graphs</p>
+            <p className="text-sm mt-2">
+              Run the simulation to generate graphs
+            </p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  // Create phase annotations for stroke graph
   const phaseAnnotations = [];
   let currentPhase = data[0]?.phase;
   let phaseStart = 0;
-  
+
   for (let i = 1; i < data.length; i++) {
     if (data[i].phase !== currentPhase || i === data.length - 1) {
       phaseAnnotations.push({
         phase: currentPhase,
         startTime: data[phaseStart].time,
         endTime: data[i - 1].time,
-        color: getPhaseColor(currentPhase)
+        color: getPhaseColor(currentPhase),
       });
       currentPhase = data[i].phase;
       phaseStart = i;
@@ -101,7 +129,8 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    // Change: Updated grid to be single-column
+    <div className="grid grid-cols-1 gap-6">
       {/* Flow vs Time */}
       <Card className="shadow-technical">
         <CardHeader>
@@ -111,29 +140,33 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Change: Switched from AreaChart to LineChart */}
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-              <XAxis 
-                dataKey="time" 
+            <LineChart data={data}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--muted))"
+              />
+              <XAxis
+                dataKey="time"
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(1)}s`}
               />
-              <YAxis 
+              <YAxis
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(0)}`}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Area 
-                type="stepAfter" 
-                dataKey="flow" 
-                stroke="hsl(var(--primary))" 
-                fill="hsl(var(--primary) / 0.2)"
+              <Line
+                type="monotone"
+                dataKey="flow"
+                stroke="hsl(var(--primary))"
                 strokeWidth={2}
+                dot={false}
               />
-            </AreaChart>
+            </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
@@ -149,25 +182,28 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-              <XAxis 
-                dataKey="time" 
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--muted))"
+              />
+              <XAxis
+                dataKey="time"
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(1)}s`}
               />
-              <YAxis 
+              <YAxis
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(0)}`}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="stepAfter" 
-                dataKey="pressure" 
-                stroke="hsl(var(--warning))" 
+              <Line
+                type="monotone"
+                dataKey="pressure"
+                stroke="hsl(var(--warning))"
                 strokeWidth={2}
-                dot={{ fill: "hsl(var(--warning))", strokeWidth: 0, r: 3 }}
+                dot={false}
                 activeDot={{ r: 5, fill: "hsl(var(--warning))" }}
               />
             </LineChart>
@@ -186,39 +222,42 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-              <XAxis 
-                dataKey="time" 
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--muted))"
+              />
+              <XAxis
+                dataKey="time"
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(1)}s`}
               />
-              <YAxis 
+              <YAxis
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(0)}mm`}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="linear" 
-                dataKey="stroke" 
-                stroke="hsl(var(--accent))" 
+              <Line
+                type="linear"
+                dataKey="stroke"
+                stroke="hsl(var(--accent))"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 5, fill: "hsl(var(--accent))" }}
               />
             </LineChart>
           </ResponsiveContainer>
-          
-          {/* Phase Legend */}
           <div className="flex flex-wrap gap-4 mt-4 justify-center">
             {phaseAnnotations.map((annotation, index) => (
               <div key={index} className="flex items-center gap-2 text-xs">
-                <div 
+                <div
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: annotation.color }}
                 />
-                <span className="text-muted-foreground">{annotation.phase}</span>
+                <span className="text-muted-foreground">
+                  {annotation.phase}
+                </span>
               </div>
             ))}
           </div>
@@ -236,36 +275,39 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
-              <XAxis 
-                dataKey="time" 
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--muted))"
+              />
+              <XAxis
+                dataKey="time"
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(1)}s`}
               />
-              <YAxis 
+              <YAxis
                 stroke="hsl(var(--muted-foreground))"
                 fontSize={12}
                 tickFormatter={(value) => `${value.toFixed(1)}`}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-              <Line 
-                type="stepAfter" 
-                dataKey="motorPower" 
-                stroke="hsl(var(--destructive))" 
+              <Line
+                type="monotone"
+                dataKey="motorPower"
+                stroke="hsl(var(--destructive))"
                 strokeWidth={2}
                 name="Motor Power"
-                dot={{ fill: "hsl(var(--destructive))", strokeWidth: 0, r: 2 }}
+                dot={false}
               />
-              <Line 
-                type="stepAfter" 
-                dataKey="actuatorPower" 
-                stroke="hsl(var(--success))" 
+              <Line
+                type="monotone"
+                dataKey="actuatorPower"
+                stroke="hsl(var(--success))"
                 strokeWidth={2}
                 name="Actuator Power"
                 strokeDasharray="5 5"
-                dot={{ fill: "hsl(var(--success))", strokeWidth: 0, r: 2 }}
+                dot={false}
               />
             </LineChart>
           </ResponsiveContainer>

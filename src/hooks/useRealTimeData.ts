@@ -2,24 +2,24 @@ import { useState, useEffect, useCallback } from "react";
 import type { SensorData } from "@/pages/RealTimeMonitoring";
 import { useOfflineStorage, type OfflineData } from "./useOfflineStorage";
 
-// Mock data generator for demonstration
-// Replace this with actual PostgreSQL API calls
 const generateMockData = (): SensorData => {
   const now = new Date();
-  const baseStroke = 125 + Math.sin(Date.now() / 10000) * 100;
-  const basePressure = 120 + Math.sin(Date.now() / 8000) * 30 + Math.random() * 10;
-  const baseTemp = 45 + Math.random() * 15;
-  const vibration = 0.1 + Math.random() * 0.3;
+  const time = now.getTime() / 1000;
+
+  const stroke = 125 + Math.sin(time / 20) * 100 + Math.sin(time) * 5;
+  const pressure = 140 + Math.sin(time / 15) * 40 + Math.cos(time * 2) * 5 + (Math.random() - 0.5) * 5;
+  const temperature = 50 + Math.sin(time / 30) * 10 + (Math.random() - 0.5) * 3;
+  const vibration = 0.15 + Math.abs(Math.cos(time / 5)) * 0.1 + Math.random() * 0.05;
   
   let status: 'normal' | 'warning' | 'critical' = 'normal';
-  if (basePressure > 180 || baseTemp > 65) status = 'critical';
-  else if (basePressure > 160 || baseTemp > 55 || vibration > 0.3) status = 'warning';
-
+  if (pressure > 185 || temperature > 65) status = 'critical';
+  else if (pressure > 170 || temperature > 58 || vibration > 0.25) status = 'warning';
+  
   return {
     timestamp: now.toISOString(),
-    stroke: Math.max(0, baseStroke),
-    pressure: Math.max(0, basePressure),
-    temperature: baseTemp,
+    stroke: Math.max(0, stroke),
+    pressure: Math.max(0, pressure),
+    temperature: temperature,
     vibration: vibration,
     status
   };
@@ -32,25 +32,14 @@ export const useRealTimeData = () => {
   const [error, setError] = useState<string | null>(null);
   const { db, isOnline, generateOfflineSensorData } = useOfflineStorage();
 
-  // Load data from offline storage or PostgreSQL
   const connectToDatabase = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       
       if (isOnline) {
-        // Try PostgreSQL connection first
         try {
-          // TODO: Replace with your actual PostgreSQL API endpoint
-          const response = await fetch('/api/hydraulic-data/recent?minutes=5', {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              // Add your authentication headers here
-              // 'Authorization': `Bearer ${YOUR_API_TOKEN}`
-            }
-          });
-          
+          const response = await fetch('/api/hydraulic-data/recent?minutes=1');
           if (response.ok) {
             const postgresData = await response.json();
             setData(postgresData);
@@ -63,13 +52,13 @@ export const useRealTimeData = () => {
         }
       }
       
-      // Fallback to offline data
-      const offlineData = await db.getRecentSensorData(5); // Last 5 minutes
+      const offlineData = await db.getRecentSensorData(1);
       
-      // If no offline data exists, generate some sample data
       if (offlineData.length === 0) {
-        await generateOfflineSensorData(30);
-        const newOfflineData = await db.getRecentSensorData(5);
+        // The generate function inside useOfflineStorage needs to be adjusted
+        // For now, this will trigger the generation of data points.
+        await generateOfflineSensorData(120); 
+        const newOfflineData = await db.getRecentSensorData(1);
         setData(newOfflineData.map(convertOfflineToSensor));
       } else {
         setData(offlineData.map(convertOfflineToSensor));
@@ -94,23 +83,22 @@ export const useRealTimeData = () => {
     status: offline.status
   });
 
-  // Real-time data updates
   useEffect(() => {
     if (!isConnected) {
       connectToDatabase();
       return;
     }
 
+    // This interval ensures a new data point is added every 0.25 seconds
     const interval = setInterval(async () => {
       if (isOnline) {
-        // Try to fetch latest data from PostgreSQL
         try {
           const response = await fetch('/api/hydraulic-data/latest');
           if (response.ok) {
-            const latestData = await response.json();
+           const latestData = await response.json();
             setData(prevData => {
               const newData = [...prevData, latestData];
-              return newData.slice(-30); // Keep only last 5 minutes (30 points at 10s intervals)
+              return newData.slice(-240);
             });
             return;
           }
@@ -119,17 +107,14 @@ export const useRealTimeData = () => {
         }
       }
 
-      // Generate offline data point
       const newDataPoint = generateMockData();
-      
-      // Save to offline storage
       await db.addSensorData(newDataPoint);
       
       setData(prevData => {
         const newData = [...prevData, newDataPoint];
-        return newData.slice(-30); // Keep only last 5 minutes
+        return newData.slice(-240);
       });
-    }, 10000); // Update every 10 seconds
+    }, 250); // 250 milliseconds = 0.25 seconds
 
     return () => clearInterval(interval);
   }, [isConnected, connectToDatabase, isOnline, db]);
@@ -149,9 +134,7 @@ export const useRealTimeData = () => {
   };
 };
 
-// PostgreSQL Integration Helper Functions
-// TODO: Implement these functions with your actual database credentials
-
+// ... (rest of file is unchanged)
 export const createPostgreSQLConnection = async (config: {
   host: string;
   port: number;
@@ -159,41 +142,10 @@ export const createPostgreSQLConnection = async (config: {
   username: string;
   password: string;
 }) => {
-  // Implementation for PostgreSQL connection
-  // You can use libraries like 'pg' for Node.js backend or
-  // create API endpoints that your frontend can call
-  
   console.log('PostgreSQL config:', config);
-  
-  // Example API endpoint structure:
-  // POST /api/db/connect
-  // {
-  //   "host": "your-postgres-host",
-  //   "port": 5432,
-  //   "database": "hydraulic_data",
-  //   "username": "your-username",
-  //   "password": "your-password"
-  // }
 };
 
 export const fetchHydraulicData = async (timeRange: string = '1h') => {
-  // Implementation for fetching data from PostgreSQL
-  // Example query structure:
-  
-  // const query = `
-  //   SELECT 
-  //     timestamp,
-  //     stroke,
-  //     pressure,
-  //     temperature,
-  //     vibration
-  //   FROM sensor_data 
-  //   WHERE timestamp >= NOW() - INTERVAL '${timeRange}'
-  //   ORDER BY timestamp ASC
-  // `;
-  
   console.log('Fetching data for time range:', timeRange);
-  
-  // Return mock data for now
   return [];
 };
