@@ -159,7 +159,7 @@ export const HydraulicSimulator = () => {
             <div className="flex items-center gap-2">
               <Input 
                 type="file" 
-                accept=".csv, .txt" 
+                accept=".csv, .txt , .xlsx" 
                 onChange={handleFileChange} 
                 className="max-w-xs"
               />

@@ -10,17 +10,11 @@ export const parseParametersFromCSV = (file: File): Promise<HydraulicParameters>
       skipEmptyLines: true,
       complete: (results) => {
         const data = results.data[0] as any;
-        if (!data) {
-           reject(new Error("CSV file is empty or invalid."));
-          return;
-        }
+        if (!data) { reject(new Error("CSV file is empty or invalid.")); return; }
         const parameters: HydraulicParameters = {
-          cylinderBore: Number(data.cylinderBore),
-          rodDiameter: Number(data.rodDiameter),
-          deadLoad: Number(data.deadLoad),
-          holdingLoad: Number(data.holdingLoad),
-          motorRpm: Number(data.motorRpm),
-          pumpEfficiency: Number(data.pumpEfficiency),
+          cylinderBore: Number(data.cylinderBore), rodDiameter: Number(data.rodDiameter),
+          deadLoad: Number(data.deadLoad), holdingLoad: Number(data.holdingLoad),
+          motorRpm: Number(data.motorRpm), pumpEfficiency: Number(data.pumpEfficiency),
           systemLosses: Number(data.systemLosses),
           phases: {
             fastDown: { speed: Number(data['fastDown.speed']), stroke: Number(data['fastDown.stroke']), time: Number(data['fastDown.time']) },
@@ -31,9 +25,7 @@ export const parseParametersFromCSV = (file: File): Promise<HydraulicParameters>
         };
         resolve(parameters);
       },
-      error: (error) => {
-        reject(error);
-      },
+      error: (error) => { reject(error); },
     });
   });
 };
@@ -44,51 +36,48 @@ const toNumber = (value: any): number => {
 };
 
 /**
- * UPDATED: This parser is now specifically designed for the format of 'Circut-1 final.txt'.
- * It correctly identifies headers, maps columns, and calculates missing data.
+ * UPDATED: This parser is now specifically tailored to the format of 'Copy of circuit_1_data_sheet(2).csv'.
  */
 export const parseGraphDataFromCSV = (file: File): Promise<SimulationDataPoint[]> => {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       skipEmptyLines: true,
-      delimiter: ';', // Set delimiter to semicolon
+      // This file uses commas, but we will let Papaparse guess for flexibility
+      delimitersToGuess: [',', ';', '\t'],
       complete: (results: { data: string[][] }) => {
-        // Find the specific header row from your file
-        const headerIndex = results.data.findIndex(row => row[0]?.trim() === 't' && row[1]?.trim() === 'x');
-        
-        if (headerIndex === -1) {
-          return reject(new Error("Could not find the header row (e.g., 't;x;v;...') in your file."));
+        if (!results.data || results.data.length < 5) {
+          return reject(new Error("The file appears to be missing the required header and data rows."));
         }
 
-        // The actual data starts two rows after the header to skip the units row '[s];[mm];...'
-        const dataRows = results.data.slice(headerIndex + 2);
+        // The specific format of this file means the data starts at the 5th row (index 4).
+        // We slice the array to remove the metadata/header lines.
+        const dataRows = results.data.slice(4);
 
         if (dataRows.length === 0) {
-          return reject(new Error("No data rows found after the header in your file."));
+          return reject(new Error("No data rows found after the initial metadata."));
         }
 
         const graphData = dataRows.map((row: string[]) => {
-          // Map data by its column position based on 'Circut-1 final.txt'
+          // Map data by its known column position: t,x,v,p,p
           const dataPoint = {
-            time: toNumber(row[0]),       // Column 0 is 't' (Time)
-            stroke: toNumber(row[1]),     // Column 1 is 'x' (Stroke/Displacement)
-            pressure: toNumber(row[4]),   // Column 4 is 'Pressure at cap end'
-            
-            // Approximate Flow based on velocity (column 2) to match the desired graph shape
-            flow: Math.abs(toNumber(row[2])) > 0.01 ? 65 : 0,
+            time: toNumber(row[0]),          // Column 0 is 't' (Time)
+            stroke: toNumber(row[1]),        // Column 1 is 'x' (Displacement)
+            velocity: toNumber(row[2]),      // Column 2 is 'v' (Velocity)
+            pressure_rod: toNumber(row[3]),  // Column 3 is 'Pressure at rod end'
+            pressure_cap: toNumber(row[4]),  // Column 4 is 'Pressure at cap end'
           };
           return dataPoint;
         });
-        
-        // Calculate power based on the parsed and approximated values
-        const finalGraphData = graphData.map(point => {
-          const calculatedPower = (point.pressure * point.flow) / 600;
+
+        // Approximate flow and calculate power based on the parsed data
+        const finalGraphData = graphData.map(p => {
+          const flow = Math.abs(p.velocity) > 0.001 ? 65 : 0;
+          const power = (p.pressure_cap * flow) / 600;
           return {
-            ...point,
-            // Add calculated power values, assuming 90% efficiency for a realistic look
-            actuatorPower: calculatedPower > 0 ? calculatedPower * 0.9 : 0,
-            motorPower: calculatedPower > 0 ? calculatedPower / 0.9 : 0,
-            // Default other unused fields
+            ...p,
+            flow: flow,
+            actuatorPower: power > 0 ? power * 0.9 : 0,
+            motorPower: power > 0 ? power / 0.9 : 0,
             phase: 'Uploaded Data',
             pumpInputPower: 0,
             actualMotorInputPower: 0,
@@ -96,7 +85,7 @@ export const parseGraphDataFromCSV = (file: File): Promise<SimulationDataPoint[]
             idealMotorInputPower: 0,
           };
         });
-
+        
         resolve(finalGraphData);
       },
       error: (error: any) => {
