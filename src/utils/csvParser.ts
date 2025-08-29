@@ -36,56 +36,76 @@ const toNumber = (value: any): number => {
 };
 
 /**
- * UPDATED: This parser is now specifically tailored to the format of 'Copy of circuit_1_data_sheet(2).csv'.
+ * UPDATED: Parser now dynamically finds the start of the data instead of skipping a fixed number of rows.
  */
 export const parseGraphDataFromCSV = (file: File): Promise<SimulationDataPoint[]> => {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       skipEmptyLines: true,
-      // This file uses commas, but we will let Papaparse guess for flexibility
-      delimitersToGuess: [',', ';', '\t'],
+      // Papaparse will automatically detect the delimiter (comma or semicolon)
       complete: (results: { data: string[][] }) => {
-        if (!results.data || results.data.length < 5) {
-          return reject(new Error("The file appears to be missing the required header and data rows."));
+        if (!results.data || results.data.length === 0) {
+          return reject(new Error("The file is empty or could not be parsed."));
         }
 
-        // The specific format of this file means the data starts at the 5th row (index 4).
-        // We slice the array to remove the metadata/header lines.
-        const dataRows = results.data.slice(4);
+        // Dynamically find the first row that starts with a valid number.
+        // This robustly skips any number of header or metadata lines.
+        const dataStartIndex = results.data.findIndex(row => row && row.length > 0 && !isNaN(parseFloat(row[0])));
 
-        if (dataRows.length === 0) {
-          return reject(new Error("No data rows found after the initial metadata."));
+        if (dataStartIndex === -1) {
+          return reject(new Error("Could not find any valid numerical data rows in the file."));
         }
 
-        const graphData = dataRows.map((row: string[]) => {
-          // Map data by its known column position: t,x,v,p,p
-          const dataPoint = {
-            time: toNumber(row[0]),          // Column 0 is 't' (Time)
-            stroke: toNumber(row[1]),        // Column 1 is 'x' (Displacement)
-            velocity: toNumber(row[2]),      // Column 2 is 'v' (Velocity)
-            pressure_rod: toNumber(row[3]),  // Column 3 is 'Pressure at rod end'
-            pressure_cap: toNumber(row[4]),  // Column 4 is 'Pressure at cap end'
-          };
-          return dataPoint;
-        });
+        // Slice from the detected start of the data to the end of the file.
+        const dataRows = results.data.slice(dataStartIndex);
+        
+        const graphData = dataRows.map((row: string[]) => ({
+          time: toNumber(row[0]),
+          stroke: toNumber(row[1]),
+          velocity: toNumber(row[2]),
+          pressure_rod: toNumber(row[3]),
+          pressure_cap: toNumber(row[4]),
+        }));
 
-        // Approximate flow and calculate power based on the parsed data
         const finalGraphData = graphData.map(p => {
-          const flow = Math.abs(p.velocity) > 0.001 ? 65 : 0;
-          const power = (p.pressure_cap * flow) / 600;
+          // These are typical values for simulation; in a real scenario, these would come from known system parameters.
+          const C_BORE_DIAMETER = 75 / 1000; // 75mm in meters
+          const C_ROD_DIAMETER = 45 / 1000; // 45mm in meters
+          const PUMP_EFFICIENCY = 0.9;
+
+          const areaCap = (Math.PI * C_BORE_DIAMETER**2) / 4;
+          const areaRod = (Math.PI * C_ROD_DIAMETER**2) / 4;
+          const areaAnnular = areaCap - areaRod;
+          
+          const isExtending = p.velocity >= 0; // Consider 0 velocity as part of extension/hold phase
+          const effectiveArea = isExtending ? areaCap : areaAnnular;
+          const effectivePressure = isExtending ? p.pressure_cap : p.pressure_rod;
+
+          // Flow Rate (L/min) = Area (m^2) * Velocity (m/s) * 60,000
+          const flow = effectiveArea * Math.abs(p.velocity) * 60000;
+
+          // Actuator Power (kW) = Force (N) * Velocity (m/s) / 1000
+          const force = effectivePressure * 100000 * effectiveArea;
+          const actuatorPower = (force * Math.abs(p.velocity)) / 1000;
+          
+          // Pump Input Power (kW) = Pressure (bar) * Flow (L/min) / 600
+          const pumpInputPower = (effectivePressure * flow) / 600;
+
+          const motorPower = pumpInputPower > 0 ? pumpInputPower / PUMP_EFFICIENCY : 0;
+
           return {
             ...p,
-            flow: flow,
-            actuatorPower: power > 0 ? power * 0.9 : 0,
-            motorPower: power > 0 ? power / 0.9 : 0,
+            flow,
+            actuatorPower,
+            motorPower,
             phase: 'Uploaded Data',
-            pumpInputPower: 0,
-            actualMotorInputPower: 0,
-            actuatorOutputPower: 0,
-            idealMotorInputPower: 0,
+            pumpInputPower,
+            actualMotorInputPower: motorPower,
+            actuatorOutputPower: actuatorPower,
+            idealMotorInputPower: pumpInputPower,
           };
         });
-        
+
         resolve(finalGraphData);
       },
       error: (error: any) => {

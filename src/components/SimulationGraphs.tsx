@@ -9,7 +9,6 @@ interface SimulationGraphsProps {
   isLoading: boolean;
 }
 
-// ... CustomTooltip, getUnit, getPhaseColor functions remain the same
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -35,18 +34,18 @@ const getUnit = (dataKey: string) => {
     case 'pressure_rod': return 'bar';
     case 'stroke': return 'mm';
     case 'velocity': return 'm/s';
+    case 'idealMotorInputPower': return 'kW';
+    case 'actualMotorInputPower': return 'kW';
+    case 'actuatorOutputPower': return 'kW';
     default: return '';
   }
 };
-
-const getPhaseColor = (phase: string) => { return '#6b7280'; };
-
 
 export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-6">
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: 6 }).map((_, i) => (
           <Card key={i}><CardHeader><Skeleton className="h-6 w-40" /></CardHeader><CardContent><Skeleton className="h-80 w-full" /></CardContent></Card>
         ))}
       </div>
@@ -67,6 +66,12 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
     );
   }
 
+  const maxTime = data.length > 0 ? Math.max(...data.map(d => d.time)) : 0;
+  const xTicks = [];
+  for (let i = 0; i <= maxTime + 0.75; i += 0.75) {
+    xTicks.push(i);
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6">
       {/* 1. Time VS Displacement */}
@@ -76,7 +81,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(val) => val.toFixed(1)} unit="s" />
+              <XAxis dataKey="time" type="number" domain={[0, 'dataMax']} ticks={xTicks} tickFormatter={(val) => val.toFixed(2)} unit="s" />
               <YAxis label={{ value: 'Displacement (mm)', angle: -90, position: 'insideLeft' }} />
               <Tooltip content={<CustomTooltip />} />
               <Line type="linear" dataKey="stroke" name="Displacement" stroke="#3b82f6" dot={false} />
@@ -92,7 +97,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(val) => val.toFixed(1)} unit="s" />
+              <XAxis dataKey="time" type="number" domain={[0, 'dataMax']} ticks={xTicks} tickFormatter={(val) => val.toFixed(2)} unit="s" />
               <YAxis label={{ value: 'Velocity (m/s)', angle: -90, position: 'insideLeft' }} />
               <Tooltip content={<CustomTooltip />} />
               <Line type="linear" dataKey="velocity" name="Velocity" stroke="#10b981" dot={false} />
@@ -108,7 +113,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(val) => val.toFixed(1)} unit="s" />
+              <XAxis dataKey="time" type="number" domain={[0, 'dataMax']} ticks={xTicks} tickFormatter={(val) => val.toFixed(2)} unit="s" />
               <YAxis label={{ value: 'Pressure (bar)', angle: -90, position: 'insideLeft' }} />
               <Tooltip content={<CustomTooltip />} />
               <Line type="linear" dataKey="pressure_cap" name="Pressure (Cap End)" stroke="#f59e0b" dot={false} />
@@ -124,7 +129,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(val) => val.toFixed(1)} unit="s" />
+              <XAxis dataKey="time" type="number" domain={[0, 'dataMax']} ticks={xTicks} tickFormatter={(val) => val.toFixed(2)} unit="s" />
               <YAxis label={{ value: 'Pressure (bar)', angle: -90, position: 'insideLeft' }} />
               <Tooltip content={<CustomTooltip />} />
               <Line type="linear" dataKey="pressure_rod" name="Pressure (Rod End)" stroke="#ef4444" dot={false} />
@@ -140,10 +145,36 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(val) => val.toFixed(1)} unit="s" />
+              <XAxis dataKey="time" type="number" domain={[0, 'dataMax']} ticks={xTicks} tickFormatter={(val) => val.toFixed(2)} unit="s" />
               <YAxis label={{ value: 'Flow (L/min)', angle: -90, position: 'insideLeft' }} />
               <Tooltip content={<CustomTooltip />} />
               <Line type="linear" dataKey="flow" name="Flow Rate" stroke="#8884d8" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* 6. Power Analysis Graph (NEW) */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Zap /> Power Analysis</CardTitle></CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="time" 
+                type="number" 
+                domain={[0, 'dataMax']} 
+                ticks={xTicks}
+                tickFormatter={(val) => val.toFixed(2)} 
+                unit="s" 
+              />
+              <YAxis label={{ value: 'Power (kW)', angle: -90, position: 'insideLeft' }} />
+              <Tooltip formatter={(value: number, name: string) => [`${value.toFixed(2)} kW`, name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())]} />
+              <Legend />
+              <Line type="monotone" dataKey="idealMotorInputPower" name="Ideal Motor Input" stroke="#a78bfa" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="actualMotorInputPower" name="Actual Motor Input" stroke="#ef4444" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="actuatorOutputPower" name="Actuator Output" stroke="#22c55e" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>

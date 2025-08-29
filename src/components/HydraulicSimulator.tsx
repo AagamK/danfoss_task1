@@ -3,15 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, ArrowLeft, BarChart3, Download, Settings, Brain } from "lucide-react";
+import { Calculator, ArrowLeft, BarChart3, Download, Settings, Brain, Activity } from "lucide-react";
 import { ParameterForm } from "./ParameterForm";
 import { ResultsDashboard } from "./ResultsDashboard";
 import { SimulationGraphs } from "./SimulationGraphs";
-import { useHydraulicCalculations } from "@/hooks/useHydraulicCalculations";
+import { useHydraulicCalculations, SimulationDataPoint } from "@/hooks/useHydraulicCalculations";
 import { useNavigate } from "react-router-dom";
 import { parseGraphDataFromCSV } from '@/utils/csvParser';
 import { toast } from "@/components/ui/sonner";
-import { AIEfficiencyTab } from "./AIEfficiencyTab"; // Import the new component
+import { AIEfficiencyTab } from "./AIEfficiencyTab";
+import { DetailedSensorComparison } from "./DetailedSensorComparison"; // Import the new detailed comparison component
 
 export interface HydraulicParameters {
   cylinderBore: number;
@@ -52,6 +53,12 @@ export const HydraulicSimulator = () => {
   const [file, setFile] = useState<File | null>(null);
   const [isPlotting, setIsPlotting] = useState(false);
   const { results, setResults, simulationData, setSimulationData, isCalculating, runSimulation, error } = useHydraulicCalculations(parameters);
+  
+  const [sensorOneFile, setSensorOneFile] = useState<File | null>(null);
+  const [sensorTwoFile, setSensorTwoFile] = useState<File | null>(null);
+  const [sensorOneData, setSensorOneData] = useState<SimulationDataPoint[]>([]);
+  const [sensorTwoData, setSensorTwoData] = useState<SimulationDataPoint[]>([]);
+  const [isComparing, setIsComparing] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -79,7 +86,7 @@ export const HydraulicSimulator = () => {
     try {
       const parsedData = await parseGraphDataFromCSV(file);
       setSimulationData(parsedData);
-      setResults(null);
+      setResults(null); 
       setActiveTab("graphs");
       toast.success("File Plotted Successfully", {
         description: `${parsedData.length} data points have been loaded from your file.`,
@@ -101,7 +108,7 @@ export const HydraulicSimulator = () => {
       ...simulationData.map(row => [
         row.time.toFixed(3),
         row.flow.toFixed(2),
-        row.pressure.toFixed(1),
+        row.pressure_cap.toFixed(1),
         row.stroke.toFixed(1),
         row.motorPower.toFixed(2),
         row.actuatorPower.toFixed(2)
@@ -118,10 +125,44 @@ export const HydraulicSimulator = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleSensorFileChange = (
+    event: ChangeEvent<HTMLInputElement>,
+    sensorNumber: 1 | 2
+  ) => {
+    if (event.target.files) {
+      if (sensorNumber === 1) {
+        setSensorOneFile(event.target.files[0]);
+      } else {
+        setSensorTwoFile(event.target.files[0]);
+      }
+    }
+  };
+
+  const handleCompareSensors = async () => {
+    if (!sensorOneFile || !sensorTwoFile) return;
+    setIsComparing(true);
+    try {
+      const data1 = await parseGraphDataFromCSV(sensorOneFile);
+      const data2 = await parseGraphDataFromCSV(sensorTwoFile);
+      setSensorOneData(data1);
+      setSensorTwoData(data2);
+      setActiveTab("sensorComparison"); 
+      toast.success("Sensor Comparison Ready", {
+        description: "Both sensor data files have been plotted successfully.",
+      });
+    } catch (err) {
+      console.error("Failed to parse or compare files:", err);
+      toast.error("File Comparison Error", {
+        description: err instanceof Error ? err.message : "Could not process the files.",
+      });
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
       <div className="container mx-auto p-6 max-w-7xl">
-        {/* ... Header and buttons remain the same ... */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
             <Button variant="outline" onClick={() => navigate('/')}>
@@ -140,8 +181,8 @@ export const HydraulicSimulator = () => {
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap gap-4">
                 <Button
-                   onClick={handleRunSimulation}
-                  disabled={isCalculating || isPlotting}
+                  onClick={handleRunSimulation}
+                  disabled={isCalculating || isPlotting || isComparing}
                   className="bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent/90"
                 >
                   <Calculator className="h-4 w-4 mr-2" />
@@ -150,7 +191,7 @@ export const HydraulicSimulator = () => {
                 <Button
                   variant="secondary"
                   onClick={handleExportData}
-                  disabled={!simulationData.length || isCalculating || isPlotting}
+                  disabled={!simulationData.length || isCalculating || isPlotting || isComparing}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export Results
@@ -159,23 +200,55 @@ export const HydraulicSimulator = () => {
             <div className="flex items-center gap-2">
               <Input 
                 type="file" 
-                accept=".csv, .txt , .xlsx" 
+                accept=".csv, .txt" 
                 onChange={handleFileChange} 
                 className="max-w-xs"
               />
               <Button 
-                className="bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent/90"
                 onClick={handlePlotFromFile} 
-                disabled={!file || isCalculating || isPlotting}
+                disabled={!file || isCalculating || isPlotting || isComparing}
               >
                 {isPlotting ? "Plotting..." : "Plot Data from File"}
               </Button>
             </div>
           </div>
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {/* Change: Updated grid to 4 columns */}
-          <TabsList className="grid w-full grid-cols-4">
+
+        <div className="mt-4 p-4 border rounded-lg bg-card shadow-sm">
+          <h3 className="font-semibold mb-2 text-foreground">Sensor Data Comparison</h3>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex-1 w-full">
+              <label htmlFor="sensor1" className="text-sm font-medium text-muted-foreground">Circuit 1 Data (.csv, .txt)</label>
+              <Input 
+                id="sensor1"
+                type="file" 
+                accept=".csv, .txt" 
+                onChange={(e) => handleSensorFileChange(e, 1)} 
+                className="mt-1"
+              />
+            </div>
+            <div className="flex-1 w-full">
+              <label htmlFor="sensor2" className="text-sm font-medium text-muted-foreground">Circuit 2 Data (.csv, .txt)</label>
+              <Input 
+                id="sensor2"
+                type="file" 
+                accept=".csv, .txt" 
+                onChange={(e) => handleSensorFileChange(e, 2)} 
+                className="mt-1"
+              />
+            </div>
+            <Button 
+              onClick={handleCompareSensors} 
+              disabled={!sensorOneFile || !sensorTwoFile || isComparing}
+              className="w-full sm:w-auto mt-4 sm:mt-0"
+            >
+              {isComparing ? "Comparing..." : "Compare Circuit Data"}
+            </Button>
+          </div>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-8">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="parameters" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Parameters
@@ -188,10 +261,13 @@ export const HydraulicSimulator = () => {
               <BarChart3 className="h-4 w-4 mr-2" />
               Graphs
             </TabsTrigger>
-            {/* Add new tab trigger */}
             <TabsTrigger value="aiEfficiency">
-              <Brain className="h-4 w-4 mr-2" />
+               <Brain className="h-4 w-4 mr-2" />
               AI Efficiency
+            </TabsTrigger>
+            <TabsTrigger value="sensorComparison" disabled={!sensorOneData.length || !sensorTwoData.length}>
+              <Activity className="h-4 w-4 mr-2" />
+              Circuit Comparison
             </TabsTrigger>
           </TabsList>
 
@@ -213,11 +289,17 @@ export const HydraulicSimulator = () => {
               isLoading={isCalculating || isPlotting}
             />
           </TabsContent>
-          {/* Add new tab content */}
           <TabsContent value="aiEfficiency" className="mt-6">
             <AIEfficiencyTab 
               simulationData={simulationData}
               results={results}
+            />
+          </TabsContent>
+          <TabsContent value="sensorComparison" className="mt-6">
+            <DetailedSensorComparison 
+              sensorOneData={sensorOneData}
+              sensorTwoData={sensorTwoData}
+              isLoading={isComparing}
             />
           </TabsContent>
         </Tabs>
