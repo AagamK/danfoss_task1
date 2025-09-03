@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, ArrowLeft, BarChart3, Download, Settings, Brain, Activity } from "lucide-react";
+import { Calculator, ArrowLeft, BarChart3, Download, Settings, Brain, Activity, FileText } from "lucide-react";
 import { ParameterForm } from "./ParameterForm";
 import { ResultsDashboard } from "./ResultsDashboard";
 import { SimulationGraphs } from "./SimulationGraphs";
@@ -12,7 +12,11 @@ import { useNavigate } from "react-router-dom";
 import { parseGraphDataFromCSV } from '@/utils/csvParser';
 import { toast } from "@/components/ui/sonner";
 import { AIEfficiencyTab } from "./AIEfficiencyTab";
-import { DetailedSensorComparison } from "./DetailedSensorComparison"; // Import the new detailed comparison component
+import { DetailedSensorComparison } from "./DetailedSensorComparison";
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+
+// Import the new detailed comparison component
 
 export interface HydraulicParameters {
   cylinderBore: number;
@@ -45,7 +49,6 @@ const defaultParameters: HydraulicParameters = {
     fastUp: { speed: 200, stroke: 250, time: 1.25 }
   }
 };
-
 export const HydraulicSimulator = () => {
   const navigate = useNavigate();
   const [parameters, setParameters] = useState<HydraulicParameters>(defaultParameters);
@@ -59,6 +62,7 @@ export const HydraulicSimulator = () => {
   const [sensorOneData, setSensorOneData] = useState<SimulationDataPoint[]>([]);
   const [sensorTwoData, setSensorTwoData] = useState<SimulationDataPoint[]>([]);
   const [isComparing, setIsComparing] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   useEffect(() => {
     if (error) {
@@ -67,13 +71,11 @@ export const HydraulicSimulator = () => {
       });
     }
   }, [error]);
-
   const handleRunSimulation = () => {
     setSimulationData([]); 
     runSimulation();
     setActiveTab("results");
   };
-
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       setFile(event.target.files[0]);
@@ -100,7 +102,6 @@ export const HydraulicSimulator = () => {
       setIsPlotting(false);
     }
   };
-
   const handleExportData = () => {
     if (!simulationData.length) return;
     const csvContent = [
@@ -125,6 +126,181 @@ export const HydraulicSimulator = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPDF = async () => {
+    if (!results || !simulationData.length) {
+      toast.error("No Data to Export", {
+        description: "Please run a simulation first to generate data for the PDF report.",
+      });
+      return;
+    }
+
+    setIsExportingPDF(true);
+    toast.info("Generating PDF report...", {
+      description: "This process may take a few moments.",
+    });
+
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      let yPos = 20;
+      const pageHeight = doc.internal.pageSize.height;
+      const margin = 20;
+
+      const checkNewPage = (currentY: number, requiredHeight: number) => {
+        if (currentY + requiredHeight > pageHeight - margin) {
+          doc.addPage();
+          return margin;
+        }
+        return currentY;
+      };
+      
+      const addFormulaBlock = (title: string, formulaLines: string[], calcSteps: string[], currentY: number) => {
+        let y = checkNewPage(currentY, 30); // Approx height for a block
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, margin, y);
+        y += 7;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        formulaLines.forEach(line => {
+            doc.text(line, margin + 5, y);
+            y += 5;
+        });
+        y += 2;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        calcSteps.forEach(step => {
+            y = checkNewPage(y, 6);
+            doc.text(step, margin + 5, y);
+            y += 6;
+        });
+        return y + 5;
+      };
+
+      // --- PDF Header ---
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Hydraulic Press Simulation Report', margin, yPos);
+      yPos += 10;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPos);
+      yPos += 15;
+
+      // --- Input Parameters ---
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Input Parameters', margin, yPos);
+      yPos += 8;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      const params = [
+        { label: "Cylinder Bore", value: `${parameters.cylinderBore} mm` },
+        { label: "Rod Diameter", value: `${parameters.rodDiameter} mm` },
+        { label: "Dead Load", value: `${parameters.deadLoad} Ton` },
+        { label: "Holding Load", value: `${parameters.holdingLoad} Ton` },
+        { label: "Motor Speed", value: `${parameters.motorRpm} RPM` },
+        { label: "Pump Efficiency", value: `${parameters.pumpEfficiency * 100}%` },
+        { label: "System Losses", value: `${parameters.systemLosses} bar` },
+      ];
+      params.forEach(p => {
+        yPos = checkNewPage(yPos, 7);
+        doc.text(`${p.label}:`, margin, yPos);
+        doc.text(p.value, 80, yPos);
+        yPos += 7;
+      });
+      yPos += 5;
+
+      // --- ALL CALCULATIONS ---
+      yPos = checkNewPage(yPos, 15);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Detailed Calculations', margin, yPos);
+      yPos += 8;
+
+      // ... Add detailed results sections ...
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Key Metrics', margin, yPos);
+      yPos += 7;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const resultMetrics = [
+          { label: "Pump Flow Rate", value: `${results.pumpFlowRate.toFixed(2)} L/min` },
+          { label: "Pump Displacement", value: `${results.pumpDisplacement.toFixed(1)} cc/rev` },
+          { label: "Required Motor Power", value: `${results.motorPower.toFixed(2)} kW` },
+          { label: "Max Relief Valve Setting", value: `${results.maxReliefValve.toFixed(0)} bar` },
+          { label: "Total Energy Consumption", value: `${results.energyConsumption.total.toFixed(3)} kWh/cycle` },
+      ];
+      resultMetrics.forEach(r => {
+        yPos = checkNewPage(yPos, 7);
+        doc.text(`${r.label}:`, margin, yPos);
+        doc.text(r.value, 80, yPos);
+        yPos += 7;
+      });
+      yPos += 5;
+
+      // --- FORMULAS & CALCULATION STEPS ---
+      doc.addPage();
+      yPos = margin;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Formulas & Example Calculations', margin, yPos);
+      yPos += 10;
+      
+      // 1. Cylinder Area
+      yPos = addFormulaBlock('Cylinder Area',
+        ['Area = (π * Diameter²) / 4'],
+        [
+          `Bore Area = (π * ${parameters.cylinderBore}² mm²) / 4 = ${results.cylinderArea.bore.toFixed(1)} cm²`,
+          `Rod Area = (π * ${parameters.rodDiameter}² mm²) / 4 = ${results.cylinderArea.rod.toFixed(1)} cm²`,
+          `Annular Area = ${results.cylinderArea.bore.toFixed(1)} - ${results.cylinderArea.rod.toFixed(1)} = ${results.cylinderArea.annular.toFixed(1)} cm²`,
+        ], yPos);
+
+      // 2. Pressure Calculation
+      yPos = addFormulaBlock('Pressure (Working Cycle Example)',
+        ['Pressure (bar) = (Load (N) / (Area (m²) * 100000)) + System Losses (bar)'],
+        [
+            `Load (N) = ${parameters.holdingLoad} Ton * 1000 * 9.81 = ${(parameters.holdingLoad * 1000 * 9.81).toFixed(0)} N`,
+            `Pressure = (${(parameters.holdingLoad * 1000 * 9.81).toFixed(0)} N / (${(results.cylinderArea.bore / 10000).toFixed(5)} m² * 100000)) + ${parameters.systemLosses} bar`,
+            `Result = ${results.requiredPressure.workingCycle.toFixed(1)} bar`
+        ], yPos);
+
+      // 3. Flow Rate Calculation
+      yPos = addFormulaBlock('Flow Rate (Fast Down Example)',
+        ['Flow (L/min) = Area (m²) * Speed (m/s) * 60000'],
+        [
+            `Speed = ${parameters.phases.fastDown.speed} mm/s = ${(parameters.phases.fastDown.speed / 1000).toFixed(3)} m/s`,
+            `Flow = ${(results.cylinderArea.bore / 10000).toFixed(5)} m² * ${(parameters.phases.fastDown.speed / 1000).toFixed(3)} m/s * 60000`,
+            `Result = ${results.pumpFlowRate.toFixed(2)} L/min (based on max flow across all phases)`
+        ], yPos);
+
+      // 4. Motor Power Calculation
+      yPos = addFormulaBlock('Motor Power (Working Cycle Example)',
+        ['Pump Power (kW) = (Pressure (bar) * Flow (L/min)) / 600', 'Motor Power (kW) = Pump Power / Pump Efficiency'],
+        [
+            `Flow (Working Cycle) = ${(results.cylinderArea.bore / 10000 * (parameters.phases.workingCycle.speed / 1000) * 60000).toFixed(2)} L/min`,
+            `Pump Power = (${results.requiredPressure.workingCycle.toFixed(1)} bar * ${(results.cylinderArea.bore / 10000 * (parameters.phases.workingCycle.speed / 1000) * 60000).toFixed(2)} L/min) / 600`,
+            `Motor Power = ${((results.requiredPressure.workingCycle * (results.cylinderArea.bore / 10000 * (parameters.phases.workingCycle.speed / 1000) * 60000)) / 600).toFixed(2)} kW / ${parameters.pumpEfficiency}`,
+            `Result = ${(((results.requiredPressure.workingCycle * (results.cylinderArea.bore / 10000 * (parameters.phases.workingCycle.speed / 1000) * 60000)) / 600) / parameters.pumpEfficiency).toFixed(2)} kW`
+        ], yPos);
+
+      doc.save('hydraulic-simulation-report.pdf');
+      toast.success("PDF Report with Formulas Generated Successfully");
+
+    } catch (e) {
+      console.error("Failed to export PDF:", e);
+      toast.error("PDF Export Failed", {
+        description: "An error occurred while generating the PDF.",
+      });
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
+
+
   const handleSensorFileChange = (
     event: ChangeEvent<HTMLInputElement>,
     sensorNumber: 1 | 2
@@ -137,7 +313,6 @@ export const HydraulicSimulator = () => {
       }
     }
   };
-
   const handleCompareSensors = async () => {
     if (!sensorOneFile || !sensorTwoFile) return;
     setIsComparing(true);
@@ -146,7 +321,7 @@ export const HydraulicSimulator = () => {
       const data2 = await parseGraphDataFromCSV(sensorTwoFile);
       setSensorOneData(data1);
       setSensorTwoData(data2);
-      setActiveTab("sensorComparison"); 
+      setActiveTab("sensorComparison");
       toast.success("Sensor Comparison Ready", {
         description: "Both sensor data files have been plotted successfully.",
       });
@@ -159,7 +334,6 @@ export const HydraulicSimulator = () => {
       setIsComparing(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
       <div className="container mx-auto p-6 max-w-7xl">
@@ -182,7 +356,7 @@ export const HydraulicSimulator = () => {
             <div className="flex flex-wrap gap-4">
                 <Button
                   onClick={handleRunSimulation}
-                  disabled={isCalculating || isPlotting || isComparing}
+                  disabled={isCalculating || isPlotting || isComparing || isExportingPDF}
                   className="bg-gradient-to-r from-primary to-accent hover:from-primary-hover hover:to-accent/90"
                 >
                   <Calculator className="h-4 w-4 mr-2" />
@@ -191,10 +365,18 @@ export const HydraulicSimulator = () => {
                 <Button
                   variant="secondary"
                   onClick={handleExportData}
-                  disabled={!simulationData.length || isCalculating || isPlotting || isComparing}
+                  disabled={!simulationData.length || isCalculating || isPlotting || isComparing || isExportingPDF}
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Export Results
+                  Export Results (CSV)
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleExportPDF}
+                  disabled={!simulationData.length || isCalculating || isPlotting || isComparing || isExportingPDF}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {isExportingPDF ? "Exporting..." : "Export Report (PDF)"}
                 </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -206,7 +388,7 @@ export const HydraulicSimulator = () => {
               />
               <Button 
                 onClick={handlePlotFromFile} 
-                disabled={!file || isCalculating || isPlotting || isComparing}
+                disabled={!file || isCalculating || isPlotting || isComparing || isExportingPDF}
               >
                 {isPlotting ? "Plotting..." : "Plot Data from File"}
               </Button>
@@ -263,7 +445,7 @@ export const HydraulicSimulator = () => {
             </TabsTrigger>
             <TabsTrigger value="aiEfficiency">
                <Brain className="h-4 w-4 mr-2" />
-              AI Efficiency
+              Efficiency
             </TabsTrigger>
             <TabsTrigger value="sensorComparison" disabled={!sensorOneData.length || !sensorTwoData.length}>
               <Activity className="h-4 w-4 mr-2" />

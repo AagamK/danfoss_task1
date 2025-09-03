@@ -51,7 +51,7 @@ export const useHydraulicCalculations = (parameters: HydraulicParameters) => {
       
       const maxFlow = Math.max(flowFastDown, flowWorkingCycle, flowFastUp);
       const pumpFlowRate = maxFlow;
-      const pumpDisplacement = (pumpFlowRate * 1000) / parameters.motorRpm + 1;
+      const pumpDisplacement = (pumpFlowRate * 1000) / parameters.motorRpm ;
       
       const powerFastDownPump = (pressureFastDown * flowFastDown) / 600;
       const powerFastDownMotor = powerFastDownPump / parameters.pumpEfficiency;

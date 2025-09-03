@@ -117,7 +117,7 @@ const ComparisonColumn = ({ title, scorecard, issues }: { title: string, scoreca
                 </CardContent>
             </Card>
             <Card className="flex-grow">
-                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><AlertTriangle />AI Diagnostics</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><AlertTriangle />Diagnostics</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     {issues.map((issue: Recommendation, index: number) => (
                         <div key={index} className={`p-3 rounded-lg border-l-4 ${getSeverityColor(issue.severity)} bg-muted/50`}>

@@ -85,7 +85,7 @@ export const AIEfficiencyTab = ({ simulationData, results }: AIEfficiencyTabProp
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="text-primary" /> AI Suggestions for Efficiency
+            <Lightbulb className="text-primary" />Suggestions for Efficiency
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -26,7 +26,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   }
   return null;
 };
-
 const getUnit = (dataKey: string) => {
   switch (dataKey) {
     case 'flow': return 'L/min';
@@ -40,7 +39,6 @@ const getUnit = (dataKey: string) => {
     default: return '';
   }
 };
-
 export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => {
   if (isLoading) {
     return (
@@ -75,7 +73,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
   return (
     <div className="grid grid-cols-1 gap-6">
       {/* 1. Time VS Displacement */}
-      <Card>
+      <Card id="displacement-graph">
         <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp /> Time VS Displacement</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -91,7 +89,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
       </Card>
 
       {/* 2. Time VS Velocity */}
-      <Card>
+      <Card id="velocity-graph">
         <CardHeader><CardTitle className="flex items-center gap-2"><Wind /> Time VS Velocity</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -107,7 +105,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
       </Card>
 
       {/* 3. Time VS Pressure at cap end */}
-      <Card>
+      <Card id="pressure-cap-graph">
         <CardHeader><CardTitle className="flex items-center gap-2"><Activity /> Time VS Pressure at Cap End</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -123,7 +121,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
       </Card>
       
       {/* 4. Time VS Pressure at rod end */}
-      <Card>
+      <Card id="pressure-rod-graph">
         <CardHeader><CardTitle className="flex items-center gap-2"><Activity /> Time VS Pressure at Rod End</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -139,7 +137,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
       </Card>
       
       {/* 5. Time VS Flow rate of pump */}
-      <Card>
+      <Card id="flow-rate-graph">
         <CardHeader><CardTitle className="flex items-center gap-2"><Gauge /> Time VS Flow Rate of Pump</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -155,7 +153,7 @@ export const SimulationGraphs = ({ data, isLoading }: SimulationGraphsProps) => 
       </Card>
 
       {/* 6. Power Analysis Graph (NEW) */}
-      <Card>
+      <Card id="power-analysis-graph">
         <CardHeader><CardTitle className="flex items-center gap-2"><Zap /> Power Analysis</CardTitle></CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
